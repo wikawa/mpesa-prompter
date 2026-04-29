@@ -8,6 +8,7 @@ const defaultCallbackUrl = window.location.protocol.startsWith("http")
 const fields = {
   numbers: document.querySelector("#numbers"),
   amount: document.querySelector("#amount"),
+  sendDelay: document.querySelector("#sendDelay"),
   transactionType: document.querySelector("#transactionType"),
   accountReference: document.querySelector("#accountReference"),
   description: document.querySelector("#description"),
@@ -218,7 +219,9 @@ async function sendPrompt(settings, phone) {
       body: JSON.stringify({ settings, payload }),
     });
     const body = await readResponse(response);
-    return response.ok ? successMessage(phone, body) : failedMessage(phone, friendlyErrorMessage(response.status, body));
+    return response.ok
+      ? successMessage(phone, body)
+      : retryableAwareFailure(phone, response.status, body);
   }
 
   const token = await getAccessToken(settings);
@@ -231,7 +234,9 @@ async function sendPrompt(settings, phone) {
     body: JSON.stringify(payload),
   });
   const body = await readResponse(response);
-  return response.ok ? successMessage(phone, body) : failedMessage(phone, friendlyErrorMessage(response.status, body));
+  return response.ok
+    ? successMessage(phone, body)
+    : retryableAwareFailure(phone, response.status, body);
 }
 
 async function readResponse(response) {
@@ -256,7 +261,16 @@ function successMessage(phone, body) {
 }
 
 function failedMessage(phone, message) {
-  return { phone, ok: false, message: String(message) };
+  return { phone, ok: false, message: String(message), retryable: false };
+}
+
+function retryableFailedMessage(phone, message) {
+  return { phone, ok: false, message: String(message), retryable: true };
+}
+
+function retryableAwareFailure(phone, status, body) {
+  const message = friendlyErrorMessage(status, body);
+  return isRetryableStatus(status) ? retryableFailedMessage(phone, message) : failedMessage(phone, message);
 }
 
 function friendlyErrorMessage(status, body) {
@@ -290,6 +304,9 @@ function friendlyErrorMessage(status, body) {
   if (text.includes("timeout") || text.includes("timed out")) {
     return "The request took too long. Try again in a moment.";
   }
+  if (text.includes("rate") || text.includes("too many") || status === 408 || status === 409 || status === 425 || status === 429) {
+    return "Daraja is receiving requests too quickly. The app will wait a little before trying again.";
+  }
   if (text.includes("duplicate")) {
     return "Daraja says this looks like a duplicate request. Wait a moment before trying again.";
   }
@@ -304,6 +321,10 @@ function friendlyErrorMessage(status, body) {
   }
 
   return "The payment request could not be completed. Please check the settings and try again.";
+}
+
+function isRetryableStatus(status) {
+  return [408, 409, 425, 429, 500, 502, 503, 504].includes(status);
 }
 
 function friendlyExceptionMessage(error) {
@@ -330,6 +351,33 @@ function responseText(body) {
   } catch {
     return String(body);
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function sendPromptWithRetry(settings, phone) {
+  const first = await sendPrompt(settings, phone);
+  if (!first.retryable) {
+    return first;
+  }
+
+  await sleep(5000);
+  const second = await sendPrompt(settings, phone);
+  if (second.ok) {
+    return {
+      ...second,
+      message: `${second.message} Sent after retry.`,
+    };
+  }
+
+  return {
+    ...second,
+    message: `${second.message} Retried once.`,
+  };
 }
 
 function renderResults(results) {
@@ -392,6 +440,7 @@ document.querySelector("#sendForm").addEventListener("submit", async (event) => 
   const settings = getSettings();
   const missing = missingSettings(settings);
   const amount = Number(fields.amount.value);
+  const sendDelay = Number(fields.sendDelay.value || 4);
   const recipients = getRecipients().filter((item) => item.phone);
 
   if (missing.length) {
@@ -401,6 +450,10 @@ document.querySelector("#sendForm").addEventListener("submit", async (event) => 
   }
   if (!Number.isInteger(amount) || amount < 1) {
     elements.validationSummary.textContent = "Enter a valid amount greater than 0.";
+    return;
+  }
+  if (!Number.isInteger(sendDelay) || sendDelay < 2 || sendDelay > 30) {
+    elements.validationSummary.textContent = "Enter a delay between 2 and 30 seconds.";
     return;
   }
   if (!recipients.length) {
@@ -413,9 +466,16 @@ document.querySelector("#sendForm").addEventListener("submit", async (event) => 
   elements.resultsList.innerHTML = "";
 
   const results = [];
-  for (const recipient of recipients) {
+  for (let index = 0; index < recipients.length; index += 1) {
+    const recipient = recipients[index];
     try {
-      results.push(await sendPrompt(settings, recipient.phone));
+      if (index > 0) {
+        elements.resultSummary.textContent = `Waiting ${sendDelay}s before prompt ${index + 1}/${recipients.length}...`;
+        await sleep(sendDelay * 1000);
+      }
+
+      elements.resultSummary.textContent = `Sending prompt ${index + 1}/${recipients.length}...`;
+      results.push(await sendPromptWithRetry(settings, recipient.phone));
     } catch (error) {
       results.push(failedMessage(recipient.phone, friendlyExceptionMessage(error)));
     }
