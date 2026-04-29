@@ -58,6 +58,12 @@ Deploy this whole folder to a Node-capable host such as Render, Railway, Fly.io,
 npm start
 ```
 
+If you deploy on Vercel, the `/api` folder provides serverless functions for:
+
+- `/api/stk-push`
+- `/api/mpesa-callback`
+- `/api/health`
+
 On a live HTTPS domain, users can keep the default proxy endpoint:
 
 ```text

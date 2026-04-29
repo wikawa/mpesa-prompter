@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "check": "node --check app.js && node --check server.js"
+    "check": "node --check app.js && node --check server.js && node --check api/stk-push.js && node --check api/mpesa-callback.js && node --check api/health.js"
   },
   "engines": {
     "node": ">=18"
