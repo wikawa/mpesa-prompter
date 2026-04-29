@@ -218,7 +218,7 @@ async function sendPrompt(settings, phone) {
       body: JSON.stringify({ settings, payload }),
     });
     const body = await readResponse(response);
-    return response.ok ? successMessage(phone, body) : failedMessage(phone, `Proxy HTTP ${response.status}: ${formatResponse(body)}`);
+    return response.ok ? successMessage(phone, body) : failedMessage(phone, friendlyErrorMessage(response.status, body));
   }
 
   const token = await getAccessToken(settings);
@@ -231,7 +231,7 @@ async function sendPrompt(settings, phone) {
     body: JSON.stringify(payload),
   });
   const body = await readResponse(response);
-  return response.ok ? successMessage(phone, body) : failedMessage(phone, `Daraja HTTP ${response.status}: ${formatResponse(body)}`);
+  return response.ok ? successMessage(phone, body) : failedMessage(phone, friendlyErrorMessage(response.status, body));
 }
 
 async function readResponse(response) {
@@ -247,7 +247,7 @@ async function readResponse(response) {
 function successMessage(phone, body) {
   const responseCode = String(body.ResponseCode ?? body.responseCode ?? "");
   const checkout = body.CheckoutRequestID || body.checkoutRequestId || "";
-  const message = body.CustomerMessage || body.customerMessage || body.ResponseDescription || "Prompt sent.";
+  const message = body.userMessage || body.CustomerMessage || body.customerMessage || body.ResponseDescription || "Prompt sent.";
   return {
     phone,
     ok: responseCode === "0" || responseCode === "",
@@ -259,8 +259,77 @@ function failedMessage(phone, message) {
   return { phone, ok: false, message: String(message) };
 }
 
-function formatResponse(body) {
-  return typeof body === "string" ? body : JSON.stringify(body);
+function friendlyErrorMessage(status, body) {
+  if (body && typeof body === "object" && body.userMessage) {
+    return body.userMessage;
+  }
+
+  const text = responseText(body).toLowerCase();
+
+  if (text.includes("invalid transactiontype")) {
+    return "The selected payment type is not enabled for these Daraja settings. Choose Paybill, or use Till credentials that are enabled for Buy Goods.";
+  }
+  if (text.includes("invalid access token") || text.includes("access token")) {
+    return "Daraja rejected the access token. Check your consumer key and consumer secret, then save settings again.";
+  }
+  if (text.includes("invalid shortcode") || text.includes("shortcode")) {
+    return "Daraja rejected the business shortcode. Check that the shortcode belongs to these Daraja credentials.";
+  }
+  if (text.includes("callback") || text.includes("call back")) {
+    return "The callback URL is not accepted. Use a public HTTPS callback URL, or leave the default callback on the deployed website.";
+  }
+  if (text.includes("invalid phone") || text.includes("msisdn") || text.includes("partya") || text.includes("phonenumber")) {
+    return "One of the phone numbers is not accepted by Daraja. Use Kenyan numbers like 0712345678 or 254712345678.";
+  }
+  if (text.includes("amount")) {
+    return "Daraja rejected the amount. Enter a whole number greater than zero.";
+  }
+  if (text.includes("invalid credentials") || text.includes("consumer") || text.includes("unauthorized") || status === 401 || status === 403) {
+    return "Daraja could not authorize these credentials. Check the environment, consumer key, consumer secret, shortcode, and passkey.";
+  }
+  if (text.includes("timeout") || text.includes("timed out")) {
+    return "The request took too long. Try again in a moment.";
+  }
+  if (text.includes("duplicate")) {
+    return "Daraja says this looks like a duplicate request. Wait a moment before trying again.";
+  }
+  if (status === 404) {
+    return "The payment proxy endpoint was not found. Make sure this website is deployed with the /api/stk-push backend route.";
+  }
+  if (status >= 500) {
+    return "The payment server had a problem while talking to Daraja. Try again shortly.";
+  }
+  if (status >= 400) {
+    return "Daraja rejected the request. Please check the payment type and Daraja settings, then try again.";
+  }
+
+  return "The payment request could not be completed. Please check the settings and try again.";
+}
+
+function friendlyExceptionMessage(error) {
+  const text = String(error.message || error).toLowerCase();
+
+  if (text.includes("failed to fetch") || text.includes("network")) {
+    return "The website could not reach the payment server. Check your internet connection and try again.";
+  }
+  if (text.includes("token request failed")) {
+    return "Daraja could not issue an access token. Check your consumer key, consumer secret, and environment.";
+  }
+  if (text.includes("invalid json")) {
+    return "The payment server received an invalid request. Refresh the page and try again.";
+  }
+
+  return "Something went wrong while sending the payment prompt. Please check the settings and try again.";
+}
+
+function responseText(body) {
+  if (!body) return "";
+  if (typeof body === "string") return body;
+  try {
+    return JSON.stringify(body);
+  } catch {
+    return String(body);
+  }
 }
 
 function renderResults(results) {
@@ -348,10 +417,7 @@ document.querySelector("#sendForm").addEventListener("submit", async (event) => 
     try {
       results.push(await sendPrompt(settings, recipient.phone));
     } catch (error) {
-      const corsHint = String(error.message || error).includes("Failed to fetch")
-        ? " Direct browser calls are probably blocked by CORS. Add a proxy endpoint in Settings."
-        : "";
-      results.push(failedMessage(recipient.phone, `${error.message || error}.${corsHint}`));
+      results.push(failedMessage(recipient.phone, friendlyExceptionMessage(error)));
     }
     renderResults(results);
   }

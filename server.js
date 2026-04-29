@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { friendlyDarajaMessage, friendlyExceptionMessage } = require("./lib/error-messages");
 
 const port = Number(process.env.PORT || 3000);
 const root = __dirname;
@@ -40,7 +41,10 @@ const server = http.createServer(async (req, res) => {
 
     serveStatic(req, res);
   } catch (error) {
-    sendJson(res, 500, { error: error.message || String(error) });
+    sendJson(res, 500, {
+      userMessage: friendlyExceptionMessage(error),
+      details: error.message || String(error),
+    });
   }
 });
 
@@ -64,7 +68,9 @@ async function handleStkPush(req, res) {
 
   const missing = ["consumerKey", "consumerSecret", "shortcode", "passkey", "callbackUrl"].filter((key) => !config[key]);
   if (missing.length) {
-    sendJson(res, 400, { error: `Missing proxy settings: ${missing.join(", ")}` });
+    sendJson(res, 400, {
+      userMessage: `Some Daraja settings are missing: ${missing.join(", ")}. Fill them in Settings and try again.`,
+    });
     return;
   }
 
@@ -89,6 +95,13 @@ async function handleStkPush(req, res) {
   });
 
   const darajaBody = await readFetchBody(darajaResponse);
+  if (darajaResponse.status < 200 || darajaResponse.status >= 300) {
+    sendJson(res, darajaResponse.status, {
+      userMessage: friendlyDarajaMessage(darajaResponse.status, darajaBody),
+      details: darajaBody,
+    });
+    return;
+  }
   sendJson(res, darajaResponse.status, darajaBody);
 }
 

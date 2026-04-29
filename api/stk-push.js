@@ -1,3 +1,5 @@
+const { friendlyDarajaMessage, friendlyExceptionMessage } = require("../lib/error-messages");
+
 module.exports = async function handler(req, res) {
   setCors(res);
 
@@ -7,7 +9,7 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method !== "POST") {
-    sendJson(res, 405, { error: "Method not allowed" });
+    sendJson(res, 405, { userMessage: "This payment endpoint only accepts send requests from the website." });
     return;
   }
 
@@ -27,7 +29,9 @@ module.exports = async function handler(req, res) {
 
     const missing = ["consumerKey", "consumerSecret", "shortcode", "passkey", "callbackUrl"].filter((key) => !config[key]);
     if (missing.length) {
-      sendJson(res, 400, { error: `Missing proxy settings: ${missing.join(", ")}` });
+      sendJson(res, 400, {
+        userMessage: `Some Daraja settings are missing: ${missing.join(", ")}. Fill them in Settings and try again.`,
+      });
       return;
     }
 
@@ -52,9 +56,19 @@ module.exports = async function handler(req, res) {
     });
 
     const darajaBody = await readFetchBody(darajaResponse);
+    if (!darajaResponse.ok) {
+      sendJson(res, darajaResponse.status, {
+        userMessage: friendlyDarajaMessage(darajaResponse.status, darajaBody),
+        details: darajaBody,
+      });
+      return;
+    }
     sendJson(res, darajaResponse.status, darajaBody);
   } catch (error) {
-    sendJson(res, 500, { error: error.message || String(error) });
+    sendJson(res, 500, {
+      userMessage: friendlyExceptionMessage(error),
+      details: error.message || String(error),
+    });
   }
 };
 
