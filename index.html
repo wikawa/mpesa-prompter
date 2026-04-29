@@ -21,7 +21,7 @@
           <p class="eyebrow">Payment requests</p>
           <h2>Send validated STK prompts from one dashboard.</h2>
           <p>
-            Paste numbers, save Daraja settings locally, preview each request, and send prompts through your payment server when you are ready.
+            Paste numbers, enter your own Daraja settings, preview each request, and send prompts through the website proxy.
           </p>
         </div>
         <div class="phone-preview" aria-hidden="true">
@@ -97,7 +97,7 @@
         <form class="card form-stack" id="settingsForm">
           <div class="section-heading">
             <h3>Daraja Settings</h3>
-            <p id="settingsMessage">Stored on this browser only.</p>
+            <p id="settingsMessage">Enter the Daraja credentials for the Paybill or Till you want to use.</p>
           </div>
 
           <div class="field-row">
@@ -111,7 +111,7 @@
             <label>
               <span>Proxy endpoint</span>
               <input id="proxyUrl" type="text" value="/api/stk-push">
-              <small>Default: /api/stk-push on this website. Leave it as it is.</small>
+              <small>Leave this as /api/stk-push. It lets this website call Daraja without browser CORS errors.</small>
             </label>
           </div>
 
@@ -147,7 +147,7 @@
           <label>
             <span>Callback URL</span>
             <input id="callbackUrl" type="text" value="/api/mpesa-callback">
-            <small>Default: this website's /api/mpesa-callback route. On a live domain it becomes your public HTTPS callback.</small>
+            <small>Use your own public HTTPS callback, or leave the default if this deployed website should receive callbacks.</small>
           </label>
 
           <div class="actions">

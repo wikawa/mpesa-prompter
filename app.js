@@ -71,9 +71,6 @@ function getSettings() {
 }
 
 function missingSettings(settings) {
-  if (settings.proxyUrl) {
-    return [];
-  }
   const required = ["consumerKey", "consumerSecret", "shortcode", "passkey", "callbackUrl"];
   return required.filter((key) => !settings[key]);
 }

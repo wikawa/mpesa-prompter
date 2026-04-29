@@ -41,13 +41,13 @@ async function handleStkPush(req, res) {
   const settings = body.settings || {};
   const incomingPayload = body.payload || {};
   const config = {
-    environment: value(process.env.MPESA_ENVIRONMENT, settings.environment, "sandbox"),
-    consumerKey: value(process.env.MPESA_CONSUMER_KEY, settings.consumerKey),
-    consumerSecret: value(process.env.MPESA_CONSUMER_SECRET, settings.consumerSecret),
-    shortcode: value(process.env.MPESA_SHORTCODE, settings.shortcode),
-    passkey: value(process.env.MPESA_PASSKEY, settings.passkey),
-    partyB: value(process.env.MPESA_PARTY_B, settings.partyB, settings.shortcode),
-    callbackUrl: value(process.env.MPESA_CALLBACK_URL, settings.callbackUrl, defaultCallbackUrl(req)),
+    environment: value(settings.environment, process.env.MPESA_ENVIRONMENT, "sandbox"),
+    consumerKey: value(settings.consumerKey, process.env.MPESA_CONSUMER_KEY),
+    consumerSecret: value(settings.consumerSecret, process.env.MPESA_CONSUMER_SECRET),
+    shortcode: value(settings.shortcode, process.env.MPESA_SHORTCODE),
+    passkey: value(settings.passkey, process.env.MPESA_PASSKEY),
+    partyB: value(settings.partyB, settings.shortcode, process.env.MPESA_PARTY_B),
+    callbackUrl: value(settings.callbackUrl, process.env.MPESA_CALLBACK_URL, defaultCallbackUrl(req)),
   };
 
   const missing = ["consumerKey", "consumerSecret", "shortcode", "passkey", "callbackUrl"].filter((key) => !config[key]);

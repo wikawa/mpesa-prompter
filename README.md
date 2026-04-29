@@ -1,6 +1,6 @@
 # M-Pesa Prompter Website
 
-Static website plus a small Node backend for Safaricom Daraja STK Push.
+A reusable M-Pesa STK Push website. Anyone can open the site, enter their own Daraja settings, paste phone numbers, and send payment prompts.
 
 ## Run Locally
 
@@ -14,41 +14,51 @@ Open:
 http://localhost:3000
 ```
 
-## Live Website Setup
+## How Users Use It
 
-Deploy this whole folder to a Node-capable host such as Render, Railway, Fly.io, VPS, or any server that can run:
+1. Open the website.
+2. Go to `Settings`.
+3. Enter their own Daraja details:
+   - Environment
+   - Consumer key
+   - Consumer secret
+   - Business shortcode
+   - Passkey
+   - Receiving Paybill/Till
+   - Callback URL
+4. Leave `Proxy endpoint` as `/api/stk-push`.
+5. Save settings, then send prompts from the `Send` tab.
+
+Settings are saved in the user's browser `localStorage`.
+
+## Why There Is A Proxy
+
+Browsers cannot reliably call Safaricom Daraja directly because of CORS. The website sends the user's settings and payment request to:
+
+```text
+/api/stk-push
+```
+
+The Node server then calls Daraja and returns the result to the browser.
+
+## Live Deployment
+
+Deploy this whole folder to a Node-capable host such as Render, Railway, Fly.io, a VPS, or any server that can run:
 
 ```bash
 npm start
 ```
 
-Set these environment variables on the server:
+On a live HTTPS domain, users can keep the default proxy endpoint:
 
 ```text
-MPESA_ENVIRONMENT=live
-MPESA_CONSUMER_KEY=...
-MPESA_CONSUMER_SECRET=...
-MPESA_SHORTCODE=...
-MPESA_PASSKEY=...
-MPESA_PARTY_B=...
+/api/stk-push
 ```
 
-The website already uses:
+For callbacks, users can either enter their own public callback URL or use the deployed website's callback route:
 
-- Proxy endpoint: `/api/stk-push`
-- Callback URL: `https://your-live-domain.com/api/mpesa-callback`
+```text
+https://your-domain.com/api/mpesa-callback
+```
 
-So users should leave those fields unchanged. When deployed on a real HTTPS domain, the server can automatically use that domain for the callback URL. You may still set `MPESA_CALLBACK_URL` manually if Safaricom requires a specific URL.
-
-## What The Proxy Does
-
-The browser sends payment details to `/api/stk-push`.
-
-The server then:
-
-- Gets a Daraja access token
-- Builds the secure STK Push password
-- Sends the request to Safaricom
-- Receives callbacks at `/api/mpesa-callback`
-
-This avoids browser CORS problems and keeps Daraja secrets on the server.
+Server environment variables are optional fallbacks. If a user fills settings in the website, those user-provided settings are used first.
