@@ -1,0 +1,6 @@
+.env
+node_modules/
+npm-debug.log*
+
+# Old Flutter app folder left behind by Windows file locking.
+mpesa_phone_app/
