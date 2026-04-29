@@ -1,6 +1,6 @@
 # M-Pesa Prompter Website
 
-A reusable M-Pesa STK Push website. Anyone can open the site, enter their own Daraja settings, paste phone numbers, and send payment prompts.
+A reusable M-Pesa STK Push website. Anyone can open the site, enter their own Daraja settings, paste phone numbers, and send payment prompts without writing code.
 
 ## Run Locally
 
