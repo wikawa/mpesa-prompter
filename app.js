@@ -112,25 +112,34 @@ function normalizePhone(raw) {
 }
 
 function getRecipients() {
-  return parseNumbers(fields.numbers.value).map((raw) => ({
-    raw,
-    phone: normalizePhone(raw),
-  }));
+  const seenPhones = new Set();
+  return parseNumbers(fields.numbers.value).map((raw) => {
+    const phone = normalizePhone(raw);
+    if (!phone) {
+      return { raw, phone: null, duplicate: false };
+    }
+    if (seenPhones.has(phone)) {
+      return { raw, phone, duplicate: true };
+    }
+    seenPhones.add(phone);
+    return { raw, phone, duplicate: false };
+  });
 }
 
 function renderRecipients() {
   const recipients = getRecipients();
-  const valid = recipients.filter((item) => item.phone);
-  const invalid = recipients.length - valid.length;
+  const valid = recipients.filter((item) => item.phone && !item.duplicate);
+  const invalid = recipients.filter((item) => !item.phone).length;
+  const duplicate = recipients.filter((item) => item.duplicate).length;
   const amount = Number(fields.amount.value || 0);
 
   elements.previewAmount.textContent = amount > 0 ? amount.toLocaleString() : "0";
   elements.previewCount.textContent = `${valid.length} recipient${valid.length === 1 ? "" : "s"}`;
   elements.recipientMeta.textContent = recipients.length
-    ? `${valid.length} valid, ${invalid} invalid`
+    ? `${valid.length} valid, ${invalid} invalid, ${duplicate} duplicate`
     : "No numbers yet";
-  elements.validationSummary.textContent = invalid
-    ? `${invalid} number${invalid === 1 ? "" : "s"} will be skipped.`
+  elements.validationSummary.textContent = invalid || duplicate
+    ? `${invalid + duplicate} number${invalid + duplicate === 1 ? "" : "s"} will be skipped.`
     : "Ready.";
 
   elements.recipientList.innerHTML = "";
@@ -141,10 +150,10 @@ function renderRecipients() {
 
   recipients.forEach((item) => {
     const row = document.createElement("div");
-    row.className = `recipient-item ${item.phone ? "" : "invalid"}`;
+    row.className = `recipient-item ${item.phone && !item.duplicate ? "" : "invalid"}`;
     row.innerHTML = `
       <span>${escapeHtml(item.phone || item.raw)}</span>
-      <span class="badge ${item.phone ? "" : "failed"}">${item.phone ? "Valid" : "Invalid"}</span>
+      <span class="badge ${item.phone && !item.duplicate ? "" : "failed"}">${item.duplicate ? "Duplicate" : item.phone ? "Valid" : "Invalid"}</span>
     `;
     elements.recipientList.appendChild(row);
   });
@@ -308,7 +317,10 @@ function friendlyErrorMessage(status, body) {
     return "Daraja is receiving requests too quickly. The app will wait a little before trying again.";
   }
   if (text.includes("duplicate")) {
-    return "Daraja says this looks like a duplicate request. Wait a moment before trying again.";
+    return "Daraja says this looks like a duplicate request. Wait a little longer before trying again.";
+  }
+  if (text.includes("lock subscriber") || text.includes("transaction is already in process")) {
+    return "This phone number already has a pending M-Pesa prompt. Ask the customer to finish or cancel it before sending another.";
   }
   if (status === 404) {
     return "The payment proxy endpoint was not found. Make sure this website is deployed with the /api/stk-push backend route.";
@@ -440,8 +452,8 @@ document.querySelector("#sendForm").addEventListener("submit", async (event) => 
   const settings = getSettings();
   const missing = missingSettings(settings);
   const amount = Number(fields.amount.value);
-  const sendDelay = Number(fields.sendDelay.value || 4);
-  const recipients = getRecipients().filter((item) => item.phone);
+  const sendDelay = Number(fields.sendDelay.value || 8);
+  const recipients = getRecipients().filter((item) => item.phone && !item.duplicate);
 
   if (missing.length) {
     elements.validationSummary.textContent = `Missing settings: ${missing.join(", ")}`;
@@ -452,8 +464,8 @@ document.querySelector("#sendForm").addEventListener("submit", async (event) => 
     elements.validationSummary.textContent = "Enter a valid amount greater than 0.";
     return;
   }
-  if (!Number.isInteger(sendDelay) || sendDelay < 2 || sendDelay > 30) {
-    elements.validationSummary.textContent = "Enter a delay between 2 and 30 seconds.";
+  if (!Number.isInteger(sendDelay) || sendDelay < 5 || sendDelay > 120) {
+    elements.validationSummary.textContent = "Enter a delay between 5 and 120 seconds.";
     return;
   }
   if (!recipients.length) {

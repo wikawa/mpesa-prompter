@@ -5,6 +5,7 @@ const { friendlyDarajaMessage, friendlyExceptionMessage } = require("./lib/error
 
 const port = Number(process.env.PORT || 3000);
 const root = __dirname;
+const tokenCache = new Map();
 
 loadEnvFile();
 
@@ -106,6 +107,12 @@ async function handleStkPush(req, res) {
 }
 
 async function getAccessToken(config) {
+  const cacheKey = `${config.environment}:${config.consumerKey}:${config.shortcode}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + 60000) {
+    return cached.token;
+  }
+
   const basic = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString("base64");
   const response = await fetch(`${baseUrlFor(config.environment)}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: {
@@ -120,6 +127,11 @@ async function getAccessToken(config) {
   if (!body.access_token) {
     throw new Error("Token response did not include access_token.");
   }
+  const expiresIn = Number(body.expires_in || 3599);
+  tokenCache.set(cacheKey, {
+    token: body.access_token,
+    expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1000,
+  });
   return body.access_token;
 }
 
