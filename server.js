@@ -9,12 +9,24 @@ loadEnvFile();
 
 const server = http.createServer(async (req, res) => {
   try {
-    if (req.method === "POST" && req.url === "/api/stk-push") {
+    const pathname = new URL(req.url, `http://${req.headers.host || "localhost"}`).pathname;
+
+    if (req.method === "GET" && pathname === "/api/health") {
+      sendJson(res, 200, {
+        ok: true,
+        service: "mpesa-prompter",
+        proxy: "/api/stk-push",
+        callback: "/api/mpesa-callback",
+      });
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/stk-push") {
       await handleStkPush(req, res);
       return;
     }
 
-    if (req.method === "POST" && req.url === "/api/mpesa-callback") {
+    if (req.method === "POST" && pathname === "/api/mpesa-callback") {
       const callback = await readJson(req);
       console.log("M-Pesa callback:", JSON.stringify(callback, null, 2));
       sendJson(res, 200, { ok: true });

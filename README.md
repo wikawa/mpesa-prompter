@@ -4,7 +4,10 @@ A reusable M-Pesa STK Push website. Anyone can open the site, enter their own Da
 
 ## Run Locally
 
+This project uses Node.js for the Daraja proxy. Use Node 18 or newer.
+
 ```bash
+npm run check
 npm start
 ```
 
@@ -40,6 +43,12 @@ Browsers cannot reliably call Safaricom Daraja directly because of CORS. The web
 ```
 
 The Node server then calls Daraja and returns the result to the browser.
+
+You can confirm the Node server is running here:
+
+```text
+/api/health
+```
 
 ## Live Deployment
 
